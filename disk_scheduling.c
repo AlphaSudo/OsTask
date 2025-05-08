@@ -1,147 +1,187 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-int compare_asc(const void *a, const void *b) {
+int compare_requests(const void *a, const void *b) {
     return (*(int *)a - *(int *)b);
 }
 
-int compare_desc(const void *a, const void *b) {
-    return (*(int *)b - *(int *)a);
+void fcfs_schedule(int disk_requests[], int num_requests, int start_head) {
+    int total_seek_time = 0;
+    printf("FCFS Order: %d ", start_head);
+
+    for (int i = 0; i < num_requests; i++) {
+        total_seek_time += abs(disk_requests[i] - start_head);
+        start_head = disk_requests[i];
+        printf("-> %d ", start_head);
+    }
+
+    printf("\nTotal Seek Time: %d\n", total_seek_time);
 }
 
-void fcfs(int arr[], int head, int n) {
-    int total = 0;
-    printf("\nFCFS Order: %d ", head);
-    for (int i = 0; i < n; i++) {
-        printf("-> %d ", arr[i]);
-        total += abs(head - arr[i]);
-        head = arr[i];
-    }
-    printf("\nTotal Head Movement = %d\n", total);
-}
+void scan_schedule(int disk_requests[], int num_requests, int start_head, int cylinder_limit, int direction) {
+    int total_seek_time = 0;
 
-void scan(int arr[], int head, int n, int max_cylinder) {
-    int total = 0;
-    int *left = malloc(n * sizeof(int));
-    int *right = malloc(n * sizeof(int));
-    if (!left || !right) {
-        fprintf(stderr, "Memory allocation failed.\n");
-        exit(EXIT_FAILURE);
-    }
+    qsort(disk_requests, num_requests, sizeof(int), compare_requests);
 
-    int l = 0, r = 0;
-    for (int i = 0; i < n; i++) {
-        if (arr[i] < head)
-            left[l++] = arr[i];
-        else
-            right[r++] = arr[i];
-    }
+    printf("SCAN Order: %d ", start_head);
 
-    qsort(left, l, sizeof(int), compare_desc);
-    qsort(right, r, sizeof(int), compare_asc);
+    int i = 0;
+    while (i < num_requests && disk_requests[i] < start_head) i++;
 
-    printf("\nSCAN Order: %d ", head);
-    for (int i = 0; i < r; i++) {
-        printf("-> %d ", right[i]);
-        total += abs(head - right[i]);
-        head = right[i];
-    }
+    if (direction == 1) { // Move towards higher numbered cylinders
+        // Move towards the end
+        for (int j = i; j < num_requests; j++) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
 
-    if (l > 0) {
-        total += abs(head - left[0]);  // turn around
-        head = left[0];
-        printf("-> %d ", head);
-        for (int i = 1; i < l; i++) {
-            printf("-> %d ", left[i]);
-            total += abs(head - left[i]);
-            head = left[i];
+        // Go to the end
+        if (start_head != cylinder_limit - 1) {
+            total_seek_time += abs((cylinder_limit - 1) - start_head);
+            start_head = cylinder_limit - 1;
+            printf("-> %d ", start_head);
+        }
+
+        // Move back to the lowest remaining request
+        for (int j = i - 1; j >= 0; j--) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
+    } else if (direction == -1) { // Move towards lower numbered cylinders
+        // Move towards the beginning
+        for (int j = i - 1; j >= 0; j--) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
+
+        // Go to the beginning
+        if (start_head != 0) {
+            total_seek_time += abs(0 - start_head);
+            start_head = 0;
+            printf("-> %d ", start_head);
+        }
+
+        // Move back to the highest remaining request
+        for (int j = i; j < num_requests; j++) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
         }
     }
 
-    printf("\nTotal Head Movement = %d\n", total);
-    free(left);
-    free(right);
+    printf("\nTotal Seek Time: %d\n", total_seek_time);
 }
 
-void cscan(int arr[], int head, int n, int max_cylinder) {
-    int total = 0;
-    int *left = malloc(n * sizeof(int));
-    int *right = malloc(n * sizeof(int));
-    if (!left || !right) {
-        fprintf(stderr, "Memory allocation failed.\n");
-        exit(EXIT_FAILURE);
-    }
+void c_scan_schedule(int disk_requests[], int num_requests, int start_head, int cylinder_limit, int direction) {
+    int total_seek_time = 0;
 
-    int l = 0, r = 0;
-    for (int i = 0; i < n; i++) {
-        if (arr[i] < head)
-            left[l++] = arr[i];
-        else
-            right[r++] = arr[i];
-    }
+    qsort(disk_requests, num_requests, sizeof(int), compare_requests);
 
-    qsort(left, l, sizeof(int), compare_asc);
-    qsort(right, r, sizeof(int), compare_asc);
+    printf("C-SCAN Order: %d ", start_head);
 
-    printf("\nC-SCAN Order: %d ", head);
-    for (int i = 0; i < r; i++) {
-        printf("-> %d ", right[i]);
-        total += abs(head - right[i]);
-        head = right[i];
-    }
+    int i = 0;
+    while (i < num_requests && disk_requests[i] < start_head) i++;
 
-    if (l > 0) {
-        total += abs(head - (max_cylinder - 1));  // go to max
-        total += max_cylinder - 1;                // jump to 0
-        head = 0;
-        printf("-> 0 ");
-        for (int i = 0; i < l; i++) {
-            printf("-> %d ", left[i]);
-            total += abs(head - left[i]);
-            head = left[i];
+    if (direction == 1) { // Move towards higher numbered cylinders
+        // Move right
+        for (int j = i; j < num_requests; j++) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
+
+        // Go to the end
+        if (start_head != cylinder_limit - 1) {
+            total_seek_time += abs((cylinder_limit - 1) - start_head);
+            start_head = cylinder_limit - 1;
+            printf("-> %d ", start_head);
+        }
+
+        // Jump to beginning
+        total_seek_time += (cylinder_limit - 1);
+        start_head = 0;
+        printf("-> %d ", start_head);
+
+        // Process the rest
+        for (int j = 0; j < i; j++) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
+    } else if (direction == -1) { // Move towards lower numbered cylinders
+        // Move left
+        for (int j = i - 1; j >= 0; j--) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
+        }
+
+        // Go to the beginning
+        if (start_head != 0) {
+            total_seek_time += abs(0 - start_head);
+            start_head = 0;
+            printf("-> %d ", start_head);
+        }
+
+        // Jump to the end
+        total_seek_time += (cylinder_limit - 1);
+        start_head = cylinder_limit - 1;
+        printf("-> %d ", start_head);
+
+        // Process the rest
+        for (int j = num_requests - 1; j >= i; j--) {
+            total_seek_time += abs(disk_requests[j] - start_head);
+            start_head = disk_requests[j];
+            printf("-> %d ", start_head);
         }
     }
 
-    printf("\nTotal Head Movement = %d\n", total);
-    free(left);
-    free(right);
+    printf("\nTotal Seek Time: %d\n", total_seek_time);
 }
 
 int main() {
-    int n, head, max_cylinder = 5000;
+    int request_count, head_position, total_cylinders, direction;
+    char scheduling_algorithm[10];
 
     printf("Enter number of disk requests: ");
-    if (scanf("%d", &n) != 1 || n <= 0) {
-        printf("Invalid number of requests.\n");
-        return 1;
-    }
+    scanf("%d", &request_count);
 
-    int *queue = malloc(n * sizeof(int));
-    if (!queue) {
-        fprintf(stderr, "Memory allocation failed.\n");
-        return 1;
-    }
+    int requests[request_count];
 
-    printf("Enter disk request queue: ");
-    for (int i = 0; i < n; i++) {
-        if (scanf("%d", &queue[i]) != 1 || queue[i] < 0 || queue[i] >= max_cylinder) {
-            printf("Invalid disk request at position %d.\n", i);
-            free(queue);
-            return 1;
-        }
+    printf("Enter disk requests:\n");
+    for (int i = 0; i < request_count; i++) {
+        scanf("%d", &requests[i]);
     }
 
     printf("Enter initial head position: ");
-    if (scanf("%d", &head) != 1 || head < 0 || head >= max_cylinder) {
-        printf("Invalid head position.\n");
-        free(queue);
-        return 1;
+    scanf("%d", &head_position);
+
+    printf("Enter total number of cylinders: ");
+    scanf("%d", &total_cylinders);
+
+    printf("Enter scheduling algorithm (FCFS/SCAN/CSCAN): ");
+    scanf("%s", scheduling_algorithm);
+
+    if (strcmp(scheduling_algorithm, "FCFS") == 0) {
+        fcfs_schedule(requests, request_count, head_position);
+    } else if (strcmp(scheduling_algorithm, "SCAN") == 0 || strcmp(scheduling_algorithm, "CSCAN") == 0) {
+        // User input for track direction (1 for moving towards the higher numbered cylinders, -1 for moving towards the lower numbered cylinders )
+        printf("Enter track direction (1 for moving towards the higher numbered cylinders, -1 for moving towards the lower numbered cylinders ): ");
+        scanf("%d", &direction);
+
+        if (strcmp(scheduling_algorithm, "SCAN") == 0) {
+            scan_schedule(requests, request_count, head_position, total_cylinders, direction);
+        } else if (strcmp(scheduling_algorithm, "CSCAN") == 0) {
+            c_scan_schedule(requests, request_count, head_position, total_cylinders, direction);
+        }
+    } else {
+        printf("Invalid scheduling algorithm.\n");
     }
 
-    fcfs(queue, head, n);
-    scan(queue, head, n, max_cylinder);
-    cscan(queue, head, n, max_cylinder);
-
-    free(queue);
     return 0;
 }
+
